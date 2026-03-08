@@ -5,6 +5,7 @@ export const replicate = new Replicate({
 });
 
 export type RoomStyle =
+  | "Default (AI decides)"
   | "Modern"
   | "Scandinavian"
   | "Transitional"
@@ -14,7 +15,13 @@ export type RoomStyle =
   | "Farmhouse"
   | "Coastal"
   | "Traditional"
-  | "Modern Organic";
+  | "Modern Organic"
+  | "Scandinavian Oasis"
+  | "Transitional Luxury"
+  | "B&W Modern"
+  | "Farmhouse Hacienda"
+  | "Metro Industrial"
+  | "NYC Modern";
 
 export type RoomType =
   | "Living Room"

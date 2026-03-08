@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 const ROOM_TYPES = ["Living Room", "Bedroom", "Dining Room", "Kitchen", "Office", "Bathroom", "Balcony", "Garden"];
-const STYLES = ["Modern", "Scandinavian", "Transitional", "Rustic", "Mid-Century Modern", "Urban Industrial", "Farmhouse", "Coastal", "Traditional", "Modern Organic"];
+const STYLES = ["Default (AI decides)", "Modern", "Scandinavian", "Transitional", "Rustic", "Mid-Century Modern", "Urban Industrial", "Farmhouse", "Coastal", "Traditional", "Modern Organic", "Scandinavian Oasis", "Transitional Luxury", "B&W Modern", "Farmhouse Hacienda", "Metro Industrial", "NYC Modern"];
 
 export default function StagingPage() {
   const { data: session } = useSession();
