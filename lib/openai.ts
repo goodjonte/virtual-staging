@@ -42,14 +42,18 @@ Make it look like a professional real estate photo.`;
 
   const imageFile = await toFile(imageBuffer, "room.png", { type: "image/png" });
 
+  console.log("[OpenAI] Sending request to gpt-image-1...");
+
   const response = await client.images.edit({
     model: "gpt-image-1",
     image: imageFile,
     prompt,
     n: 1,
-    size: "1536x1024",
-    quality: "high",
+    size: "1024x1024",
+    quality: "standard",
   } as any);
+
+  console.log("[OpenAI] Got response:", JSON.stringify(response).slice(0, 200));
 
   const imageData = response.data?.[0];
 

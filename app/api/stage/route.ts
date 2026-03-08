@@ -83,7 +83,15 @@ export async function POST(req: NextRequest) {
           } catch {}
         }, 5000);
 
-        const stagedBuffer = await stageRoom(buffer, file.type, roomType, style);
+        console.log("[STAGE] Calling OpenAI...");
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("OpenAI request timed out after 90 seconds")), 90000)
+        );
+        const stagedBuffer = await Promise.race([
+          stageRoom(buffer, file.type, roomType, style),
+          timeoutPromise,
+        ]);
+        console.log("[STAGE] OpenAI returned, uploading result...");
 
         clearInterval(pingInterval);
 
