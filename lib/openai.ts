@@ -1,5 +1,4 @@
-import OpenAI from "openai";
-import { toFile } from "openai";
+import OpenAI, { toFile } from "openai";
 
 export type RoomStyle =
   | "Modern"
@@ -35,20 +34,12 @@ export async function stageRoom(
 ): Promise<Buffer> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-  const prompt = `You are a professional virtual staging expert. 
-Look at this photo of an empty or partially furnished ${roomType.toLowerCase()}.
+  const prompt = `You must stage this ${roomType.toLowerCase()} with ${style} style furniture. 
+Do not change what is already within the image — do not change the room layout, walls, ceiling, floors, windows, fixtures, or any existing items. 
+Do not change the colour of any existing things. 
+Add furniture and decor only. 
+Make it look like a professional real estate photo.`;
 
-Without changing:
-- The room layout, walls, ceiling, floors or windows
-- Any existing fixed features (fireplace, built-ins, appliances)
-- The lighting or perspective of the photo
-- The overall dimensions or architecture
-
-Add realistic, high quality ${style} style furniture and decor to make it look beautifully staged for a real estate listing. 
-The result should look like a professional real estate photo. 
-Make it photorealistic and aspirational.`;
-
-  // gpt-image-1 requires PNG
   const imageFile = await toFile(imageBuffer, "room.png", { type: "image/png" });
 
   const response = await client.images.edit({
@@ -56,8 +47,9 @@ Make it photorealistic and aspirational.`;
     image: imageFile,
     prompt,
     n: 1,
-    size: "1024x1024",
-  });
+    size: "1536x1024",
+    quality: "high",
+  } as any);
 
   const imageData = response.data?.[0];
 
@@ -65,12 +57,10 @@ Make it photorealistic and aspirational.`;
     throw new Error("No image data in OpenAI response");
   }
 
-  // gpt-image-1 returns base64
   if (imageData.b64_json) {
     return Buffer.from(imageData.b64_json, "base64");
   }
 
-  // Fallback: download from URL if returned
   if (imageData.url) {
     const res = await fetch(imageData.url);
     return Buffer.from(await res.arrayBuffer());
