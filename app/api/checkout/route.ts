@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     customer_email: session.user.email,
     line_items: [{ price: planConfig.priceId, quantity: 1 }],
     success_url: `${process.env.NEXTAUTH_URL}/dashboard?success=true`,
-    cancel_url: `${process.env.NEXTAUTH_URL}/pricing`,
+    cancel_url: `${process.env.NEXTAUTH_URL}/#pricing`,
     metadata: { userEmail: session.user.email },
   });
 

@@ -75,7 +75,7 @@ export default async function DashboardPage() {
               <p className="font-semibold text-blue-900">No active subscription</p>
               <p className="text-sm text-blue-700 mt-1">Choose a plan to start staging rooms</p>
             </div>
-            <Link href="/#pricing" className="bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-800">
+            <Link href="/#pricing" className="bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-800" scroll={false}>
               View plans
             </Link>
           </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PLANS } from "@/lib/stripe";
+import { PricingSection } from "@/components/PricingSection";
 
 export default function HomePage() {
   return (
@@ -75,49 +75,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="bg-gray-50 py-20">
-        <div className="max-w-5xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Simple pricing</h2>
-          <p className="text-center text-gray-500 mb-12">Cancel any time. No lock-in contracts.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Object.entries(PLANS).map(([key, plan]) => (
-              <div
-                key={key}
-                className={`bg-white rounded-2xl p-8 shadow-sm border-2 ${key === "pro" ? "border-blue-700" : "border-transparent"}`}
-              >
-                {key === "pro" && (
-                  <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">Most popular</div>
-                )}
-                <h3 className="text-xl font-bold text-gray-900 mb-1">{plan.name}</h3>
-                <div className="text-4xl font-bold text-gray-900 mb-1">
-                  ${plan.price}<span className="text-base font-normal text-gray-400">/mo</span>
-                </div>
-                <p className="text-gray-500 text-sm mb-6">
-                  {plan.renders === 999999 ? "Unlimited renders" : `${plan.renders} renders per month`}
-                </p>
-                <ul className="space-y-2 mb-8">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className="text-green-500">✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/login"
-                  className={`block text-center py-3 rounded-xl font-semibold text-sm transition ${
-                    key === "pro"
-                      ? "bg-blue-700 text-white hover:bg-blue-800"
-                      : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                  }`}
-                >
-                  Get started
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PricingSection />
 
       {/* Footer */}
       <footer className="border-t border-gray-100 py-8 text-center text-sm text-gray-400">
