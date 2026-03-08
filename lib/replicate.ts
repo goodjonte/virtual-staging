@@ -43,6 +43,7 @@ export async function stageRoom(
     "proplabs/virtual-staging:635d607efc6e3a6016ef6d655327cd35f3d792e84b8f110688b04498c6e94cfb",
     {
       input: {
+        replicate_api_key: process.env.REPLICATE_API_TOKEN!,
         image: imageUrl,
         room: roomType,
         furniture_style: style,
