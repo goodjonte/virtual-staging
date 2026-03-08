@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { stageRoom, RoomType, RoomStyle } from "@/lib/replicate";
+import { stageRoom, RoomType, RoomStyle } from "@/lib/openai";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -29,18 +29,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Upload original image to Supabase storage
-  const fileExt = file.name.split(".").pop();
-  const fileName = `${user.id}/${Date.now()}-original.${fileExt}`;
+  // Read file into buffer
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
+  // Upload original image to Supabase storage
+  const fileExt = file.name.split(".").pop() || "jpg";
+  const originalFileName = `${user.id}/${Date.now()}-original.${fileExt}`;
+
   const { data: uploadData, error: uploadError } = await getSupabaseAdmin().storage
     .from("renders")
-    .upload(fileName, buffer, { contentType: file.type });
+    .upload(originalFileName, buffer, { contentType: file.type });
 
   if (uploadError) {
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed", detail: uploadError.message }, { status: 500 });
   }
 
   const { data: { publicUrl: originalUrl } } = getSupabaseAdmin().storage
@@ -61,25 +63,27 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (renderError) {
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
+    return NextResponse.json({ error: "DB error", detail: renderError.message }, { status: 500 });
   }
 
   try {
-    // Call Replicate
-    const stagedUrl = await stageRoom(originalUrl, roomType, style);
+    // Call OpenAI gpt-image-1 with the raw buffer
+    const stagedBuffer = await stageRoom(buffer, file.type, roomType, style);
 
-    // Download staged image and save to Supabase storage
-    const response = await fetch(stagedUrl);
-    const stagedBuffer = Buffer.from(await response.arrayBuffer());
+    // Upload staged image to Supabase storage
     const stagedFileName = `${user.id}/${Date.now()}-staged.jpg`;
 
-    const { data: stagedUpload } = await getSupabaseAdmin().storage
+    const { data: stagedUpload, error: stagedUploadError } = await getSupabaseAdmin().storage
       .from("renders")
       .upload(stagedFileName, stagedBuffer, { contentType: "image/jpeg" });
 
+    if (stagedUploadError) {
+      throw new Error(`Staged upload failed: ${stagedUploadError.message}`);
+    }
+
     const { data: { publicUrl: stagedStoredUrl } } = getSupabaseAdmin().storage
       .from("renders")
-      .getPublicUrl(stagedUpload!.path);
+      .getPublicUrl(stagedUpload.path);
 
     // Update render record
     await getSupabaseAdmin()
@@ -99,7 +103,10 @@ export async function POST(req: NextRequest) {
       originalUrl,
       stagedUrl: stagedStoredUrl,
     });
+
   } catch (err: any) {
+    console.error("[STAGE ERROR]", err.message);
+
     await getSupabaseAdmin()
       .from("renders")
       .update({ status: "failed" })
@@ -108,4 +115,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Staging failed", detail: err.message }, { status: 500 });
   }
 }
-

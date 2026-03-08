@@ -4,8 +4,8 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 
-const ROOM_TYPES = ["Living Room", "Bedroom", "Balcony", "Dining Room", "Office", "Kitchen", "Bathroom", "Garden", "Swimming Pool"];
-const STYLES = ["Default (AI decides)", "Modern", "Scandinavian", "Transitional", "Rustic", "Mid-Century Modern", "Urban Industrial", "Farmhouse", "Coastal", "Traditional", "Modern Organic", "Scandinavian Oasis", "Transitional Luxury", "B&W Modern", "Farmhouse Hacienda", "Metro Industrial", "NYC Modern"];
+const ROOM_TYPES = ["Living Room", "Bedroom", "Dining Room", "Kitchen", "Office", "Bathroom", "Balcony", "Garden", "Swimming Pool"];
+const STYLES = ["Modern", "Scandinavian", "Transitional", "Rustic", "Mid-Century Modern", "Urban Industrial", "Farmhouse", "Coastal", "Traditional", "Modern Organic", "Hamptons", "Minimalist", "Luxury"];
 
 export default function StagingPage() {
   const { data: session } = useSession();
@@ -15,6 +15,7 @@ export default function StagingPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [roomType, setRoomType] = useState("Living Room");
   const [style, setStyle] = useState("Modern");
+
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ originalUrl: string; stagedUrl: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
