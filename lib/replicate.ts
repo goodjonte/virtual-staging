@@ -5,19 +5,26 @@ export const replicate = new Replicate({
 });
 
 export type RoomStyle =
-  | "modern"
-  | "scandinavian"
-  | "hamptons"
-  | "industrial"
-  | "contemporary";
+  | "Modern"
+  | "Scandinavian"
+  | "Transitional"
+  | "Rustic"
+  | "Mid-Century Modern"
+  | "Urban Industrial"
+  | "Farmhouse"
+  | "Coastal"
+  | "Traditional"
+  | "Modern Organic";
 
 export type RoomType =
-  | "living room"
-  | "bedroom"
-  | "dining room"
-  | "kitchen"
-  | "office"
-  | "bathroom";
+  | "Living Room"
+  | "Bedroom"
+  | "Dining Room"
+  | "Kitchen"
+  | "Office"
+  | "Bathroom"
+  | "Balcony"
+  | "Garden";
 
 export async function stageRoom(
   imageUrl: string,
@@ -28,15 +35,15 @@ export async function stageRoom(
     "proplabs/virtual-staging:635d607efc6e3a6016ef6d655327cd35f3d792e84b8f110688b04498c6e94cfb",
     {
       input: {
-        replicate_api_key: process.env.REPLICATE_API_TOKEN!,
-        room: imageUrl,
+        image: imageUrl,
+        room: roomType,
         furniture_style: style,
-        room_type: roomType,
       },
     }
-  ) as string | string[];
+  ) as any;
 
-  const result = Array.isArray(output) ? output[0] : output;
+  // Output is a Replicate file object
+  const result = typeof output?.url === "function" ? output.url() : (Array.isArray(output) ? output[0] : output);
 
   if (!result) {
     throw new Error("No output from Replicate");
