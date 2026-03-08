@@ -81,11 +81,11 @@ export async function POST(req: NextRequest) {
           try {
             controller.enqueue(encoder.encode(JSON.stringify({ status: "ping" }) + "\n"));
           } catch {}
-        }, 5000);
+        }, 15000); // ping every 15s, keeps connection alive for 3+ minutes
 
         console.log("[STAGE] Calling OpenAI...");
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("OpenAI request timed out after 90 seconds")), 90000)
+          setTimeout(() => reject(new Error("OpenAI request timed out after 180 seconds")), 180000)
         );
         const stagedBuffer = await Promise.race([
           stageRoom(buffer, file.type, roomType, style),
