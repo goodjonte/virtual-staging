@@ -1,7 +1,5 @@
 import OpenAI from "openai";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
+import { toFile } from "openai";
 
 export type RoomStyle =
   | "Modern"
@@ -50,42 +48,33 @@ Add realistic, high quality ${style} style furniture and decor to make it look b
 The result should look like a professional real estate photo. 
 Make it photorealistic and aspirational.`;
 
-  // Write buffer to a temp file so we can pass it as a file upload
-  const ext = mimeType === "image/png" ? "png" : "jpg";
-  const tmpPath = path.join(os.tmpdir(), `staging-input-${Date.now()}.${ext}`);
-  fs.writeFileSync(tmpPath, imageBuffer);
+  // gpt-image-1 requires PNG
+  const imageFile = await toFile(imageBuffer, "room.png", { type: "image/png" });
 
-  try {
-    const imageFile = fs.createReadStream(tmpPath);
+  const response = await client.images.edit({
+    model: "gpt-image-1",
+    image: imageFile,
+    prompt,
+    n: 1,
+    size: "1024x1024",
+  });
 
-    const response = await client.images.edit({
-      model: "gpt-image-1",
-      image: imageFile,
-      prompt,
-      n: 1,
-      size: "1024x1024",
-    });
+  const imageData = response.data?.[0];
 
-    const imageData = response.data?.[0];
-
-    if (!imageData) {
-      throw new Error("No image data in OpenAI response");
-    }
-
-    // gpt-image-1 returns base64
-    if (imageData.b64_json) {
-      return Buffer.from(imageData.b64_json, "base64");
-    }
-
-    // Fallback: download from URL if returned
-    if (imageData.url) {
-      const res = await fetch(imageData.url);
-      return Buffer.from(await res.arrayBuffer());
-    }
-
+  if (!imageData) {
     throw new Error("No image data in OpenAI response");
-  } finally {
-    // Clean up temp file
-    try { fs.unlinkSync(tmpPath); } catch {}
   }
+
+  // gpt-image-1 returns base64
+  if (imageData.b64_json) {
+    return Buffer.from(imageData.b64_json, "base64");
+  }
+
+  // Fallback: download from URL if returned
+  if (imageData.url) {
+    const res = await fetch(imageData.url);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  throw new Error("No image data in OpenAI response");
 }
