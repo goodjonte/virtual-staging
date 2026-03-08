@@ -50,7 +50,6 @@ Make it look like a professional real estate photo.`;
     prompt,
     n: 1,
     size: "1024x1024",
-    quality: "standard",
   } as any);
 
   console.log("[OpenAI] Got response:", JSON.stringify(response).slice(0, 200));
