@@ -24,27 +24,22 @@ export async function stageRoom(
   roomType: RoomType,
   style: RoomStyle
 ): Promise<string> {
-  const prompt = `A beautifully ${style} styled ${roomType}, professionally staged for real estate photography, bright natural lighting, high end furniture, photorealistic`;
-  const negativePrompt = "ugly, blurry, low quality, distorted, people, text, watermark";
-
   const output = await replicate.run(
-    // Interior design / virtual staging model
-    "adirik/interior-design:76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6bfab4",
+    "proplabs/virtual-staging:635d607efc6e3a6016ef6d655327cd35f3d792e84b8f110688b04498c6e94cfb",
     {
       input: {
         image: imageUrl,
-        prompt,
-        negative_prompt: negativePrompt,
-        guidance_scale: 15,
-        num_inference_steps: 50,
-        strength: 0.8,
+        room_type: roomType,
+        style: style,
       },
     }
-  ) as string[];
+  ) as string | string[];
 
-  if (!output || !output[0]) {
+  const result = Array.isArray(output) ? output[0] : output;
+
+  if (!result) {
     throw new Error("No output from Replicate");
   }
 
-  return output[0];
+  return result;
 }
