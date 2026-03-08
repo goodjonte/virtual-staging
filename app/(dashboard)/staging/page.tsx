@@ -7,6 +7,14 @@ import Image from "next/image";
 const ROOM_TYPES = ["Living Room", "Bedroom", "Dining Room", "Kitchen", "Office", "Bathroom", "Balcony", "Garden", "Swimming Pool"];
 const STYLES = ["Modern", "Scandinavian", "Transitional", "Rustic", "Mid-Century Modern", "Urban Industrial", "Farmhouse", "Coastal", "Traditional", "Modern Organic", "Hamptons", "Minimalist", "Luxury"];
 
+const LOADING_MESSAGES = [
+  "Analysing your room...",
+  "Planning furniture layout...",
+  "Placing furniture...",
+  "Adding finishing touches...",
+  "Almost there...",
+];
+
 export default function StagingPage() {
   const { data: session } = useSession();
   const user = session?.user as any;
@@ -15,11 +23,14 @@ export default function StagingPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [roomType, setRoomType] = useState("Living Room");
   const [style, setStyle] = useState("Modern");
-
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [elapsed, setElapsed] = useState(0);
   const [result, setResult] = useState<{ originalUrl: string; stagedUrl: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const msgTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -40,12 +51,39 @@ export default function StagingPage() {
     setError(null);
   }
 
+  function startLoadingUI() {
+    setLoading(true);
+    setElapsed(0);
+    setLoadingMessage(LOADING_MESSAGES[0]);
+
+    // Elapsed timer
+    let secs = 0;
+    timerRef.current = setInterval(() => {
+      secs++;
+      setElapsed(secs);
+    }, 1000);
+
+    // Cycle through loading messages
+    let msgIdx = 0;
+    msgTimerRef.current = setInterval(() => {
+      msgIdx = Math.min(msgIdx + 1, LOADING_MESSAGES.length - 1);
+      setLoadingMessage(LOADING_MESSAGES[msgIdx]);
+    }, 8000);
+  }
+
+  function stopLoadingUI() {
+    setLoading(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (msgTimerRef.current) clearInterval(msgTimerRef.current);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
 
-    setLoading(true);
     setError(null);
+    setResult(null);
+    startLoadingUI();
 
     const formData = new FormData();
     formData.append("image", file);
@@ -54,21 +92,50 @@ export default function StagingPage() {
 
     try {
       const res = await fetch("/api/stage", { method: "POST", body: formData });
-      const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
         setError(data.error || "Something went wrong");
-      } else {
-        setResult({ originalUrl: data.originalUrl, stagedUrl: data.stagedUrl });
+        stopLoadingUI();
+        return;
       }
-    } catch {
+
+      // Read streaming response line by line
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+
+            if (data.status === "completed") {
+              stopLoadingUI();
+              setResult({ originalUrl: data.originalUrl, stagedUrl: data.stagedUrl });
+            } else if (data.status === "failed") {
+              stopLoadingUI();
+              setError(data.error || "Staging failed");
+            }
+            // ping and processing messages just keep connection alive, no UI update needed
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      stopLoadingUI();
       setError("Network error, please try again");
-    } finally {
-      setLoading(false);
     }
   }
 
-  const atLimit = user?.rendersUsed >= user?.rendersLimit;
+  const atLimit = user?.plan && user?.rendersUsed >= user?.rendersLimit;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,7 +146,7 @@ export default function StagingPage() {
 
       <main className="max-w-3xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">New staging</h1>
-        <p className="text-gray-500 text-sm mb-8">Upload a photo of an empty room and we'll stage it for you.</p>
+        <p className="text-gray-500 text-sm mb-8">Upload a photo of an empty room and we will stage it for you.</p>
 
         {atLimit && (
           <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 mb-6 text-sm text-orange-800">
@@ -94,7 +161,7 @@ export default function StagingPage() {
             className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
               preview ? "border-blue-300 bg-blue-50" : "border-gray-200 hover:border-blue-300"
             }`}
-            onClick={() => inputRef.current?.click()}
+            onClick={() => !loading && inputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
           >
@@ -104,6 +171,7 @@ export default function StagingPage() {
               accept="image/*"
               className="hidden"
               onChange={handleFileChange}
+              disabled={loading}
             />
             {preview ? (
               <div className="relative h-64 rounded-xl overflow-hidden">
@@ -126,12 +194,13 @@ export default function StagingPage() {
                 <button
                   key={r}
                   type="button"
+                  disabled={loading}
                   onClick={() => setRoomType(r)}
-                  className={`py-2 px-3 rounded-xl text-sm font-medium capitalize border transition ${
+                  className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${
                     roomType === r
                       ? "bg-blue-700 text-white border-blue-700"
                       : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   {r}
                 </button>
@@ -147,12 +216,13 @@ export default function StagingPage() {
                 <button
                   key={s}
                   type="button"
+                  disabled={loading}
                   onClick={() => setStyle(s)}
-                  className={`py-2 px-3 rounded-xl text-sm font-medium capitalize border transition ${
+                  className={`py-2 px-3 rounded-xl text-sm font-medium border transition ${
                     style === s
                       ? "bg-blue-700 text-white border-blue-700"
                       : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   {s}
                 </button>
@@ -169,14 +239,40 @@ export default function StagingPage() {
             disabled={!file || loading || atLimit}
             className="w-full bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Staging your room..." : "Stage this room"}
+            {loading ? "Generating..." : "Stage this room"}
           </button>
         </form>
+
+        {/* Loading state */}
+        {loading && (
+          <div className="mt-8 bg-white rounded-2xl border border-gray-100 p-8 text-center">
+            {/* Spinner */}
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-700 rounded-full animate-spin" />
+            </div>
+            <p className="text-gray-800 font-semibold mb-1">{loadingMessage}</p>
+            <p className="text-gray-400 text-sm">
+              {elapsed < 10
+                ? "AI staging takes 30 to 60 seconds, hang tight..."
+                : `${elapsed}s elapsed, almost done...`}
+            </p>
+            {/* Progress bar */}
+            <div className="mt-4 w-full bg-gray-100 rounded-full h-1.5">
+              <div
+                className="bg-blue-700 h-1.5 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min((elapsed / 60) * 100, 95)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Result */}
         {result && (
           <div className="mt-10">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Your staged room is ready</h2>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-green-600 text-xl">✓</span>
+              <h2 className="text-lg font-bold text-gray-900">Your staged room is ready</h2>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide">Before</p>

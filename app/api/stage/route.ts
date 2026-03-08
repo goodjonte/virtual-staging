@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stageRoom, RoomType, RoomStyle } from "@/lib/openai";
 
+export const maxDuration = 300; // 5 minutes (Netlify Pro supports up to 900s)
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -12,7 +14,6 @@ export async function POST(req: NextRequest) {
 
   const user = session.user as any;
 
-  // Check render limit
   if (user.rendersUsed >= user.rendersLimit) {
     return NextResponse.json(
       { error: "Render limit reached. Please upgrade your plan." },
@@ -29,11 +30,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Read file into buffer
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Upload original image to Supabase storage
+  // Upload original image
   const fileExt = file.name.split(".").pop() || "jpg";
   const originalFileName = `${user.id}/${Date.now()}-original.${fileExt}`;
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     .from("renders")
     .getPublicUrl(uploadData.path);
 
-  // Create pending render record
+  // Create render record
   const { data: render, error: renderError } = await getSupabaseAdmin()
     .from("renders")
     .insert({
@@ -66,52 +66,77 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "DB error", detail: renderError.message }, { status: 500 });
   }
 
-  try {
-    // Call OpenAI gpt-image-1 with the raw buffer
-    const stagedBuffer = await stageRoom(buffer, file.type, roomType, style);
+  // Return render ID immediately so client can start polling
+  // Then process in background using streaming response to keep connection alive
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
 
-    // Upload staged image to Supabase storage
-    const stagedFileName = `${user.id}/${Date.now()}-staged.jpg`;
+      // Send render ID immediately
+      controller.enqueue(encoder.encode(JSON.stringify({ status: "processing", renderId: render.id }) + "\n"));
 
-    const { data: stagedUpload, error: stagedUploadError } = await getSupabaseAdmin().storage
-      .from("renders")
-      .upload(stagedFileName, stagedBuffer, { contentType: "image/jpeg" });
+      try {
+        // Keep connection alive with periodic pings while OpenAI processes
+        const pingInterval = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(JSON.stringify({ status: "ping" }) + "\n"));
+          } catch {}
+        }, 5000);
 
-    if (stagedUploadError) {
-      throw new Error(`Staged upload failed: ${stagedUploadError.message}`);
-    }
+        const stagedBuffer = await stageRoom(buffer, file.type, roomType, style);
 
-    const { data: { publicUrl: stagedStoredUrl } } = getSupabaseAdmin().storage
-      .from("renders")
-      .getPublicUrl(stagedUpload.path);
+        clearInterval(pingInterval);
 
-    // Update render record
-    await getSupabaseAdmin()
-      .from("renders")
-      .update({ staged_url: stagedStoredUrl, status: "completed" })
-      .eq("id", render.id);
+        // Upload staged image
+        const stagedFileName = `${user.id}/${Date.now()}-staged.jpg`;
+        const { data: stagedUpload, error: stagedUploadError } = await getSupabaseAdmin().storage
+          .from("renders")
+          .upload(stagedFileName, stagedBuffer, { contentType: "image/jpeg" });
 
-    // Increment renders_used
-    await getSupabaseAdmin()
-      .from("users")
-      .update({ renders_used: user.rendersUsed + 1 })
-      .eq("id", user.id);
+        if (stagedUploadError) throw new Error(stagedUploadError.message);
 
-    return NextResponse.json({
-      success: true,
-      renderId: render.id,
-      originalUrl,
-      stagedUrl: stagedStoredUrl,
-    });
+        const { data: { publicUrl: stagedUrl } } = getSupabaseAdmin().storage
+          .from("renders")
+          .getPublicUrl(stagedUpload.path);
 
-  } catch (err: any) {
-    console.error("[STAGE ERROR]", err.message);
+        await getSupabaseAdmin()
+          .from("renders")
+          .update({ staged_url: stagedUrl, status: "completed" })
+          .eq("id", render.id);
 
-    await getSupabaseAdmin()
-      .from("renders")
-      .update({ status: "failed" })
-      .eq("id", render.id);
+        await getSupabaseAdmin()
+          .from("users")
+          .update({ renders_used: user.rendersUsed + 1 })
+          .eq("id", user.id);
 
-    return NextResponse.json({ error: "Staging failed", detail: err.message }, { status: 500 });
-  }
+        controller.enqueue(encoder.encode(JSON.stringify({
+          status: "completed",
+          renderId: render.id,
+          originalUrl,
+          stagedUrl,
+        }) + "\n"));
+
+      } catch (err: any) {
+        await getSupabaseAdmin()
+          .from("renders")
+          .update({ status: "failed" })
+          .eq("id", render.id);
+
+        controller.enqueue(encoder.encode(JSON.stringify({
+          status: "failed",
+          error: err.message,
+        }) + "\n"));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
 }
