@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const user = session.user as any;
 
   // Fetch recent renders
-  const { data: renders } = await supabaseAdmin
+  const { data: renders } = await getSupabaseAdmin()
     .from("renders")
     .select("*")
     .eq("user_id", user.id)

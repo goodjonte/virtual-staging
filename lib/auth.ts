@@ -1,7 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
-import { supabaseAdmin } from "./supabase";
+import { getSupabaseAdmin } from "./supabase";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,7 +29,7 @@ export const authOptions: NextAuthOptions = {
       if (!user.email) return false;
 
       // Upsert user in Supabase
-      const { error } = await supabaseAdmin.from("users").upsert(
+      const { error } = await getSupabaseAdmin().from("users").upsert(
         {
           email: user.email,
           name: user.name,
@@ -47,7 +47,7 @@ export const authOptions: NextAuthOptions = {
       if (!session.user?.email) return session;
 
       // Attach DB user data to session
-      const { data: dbUser } = await supabaseAdmin
+      const { data: dbUser } = await getSupabaseAdmin()
         .from("users")
         .select("id, plan, renders_used, renders_limit, stripe_customer_id")
         .eq("email", session.user.email)

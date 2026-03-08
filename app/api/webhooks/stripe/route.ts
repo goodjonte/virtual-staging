@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { PLANS } from "@/lib/stripe";
 import Stripe from "stripe";
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
       if (!planInfo) break;
 
-      await supabaseAdmin.from("users").update({
+      await getSupabaseAdmin().from("users").update({
         stripe_customer_id: customerId,
         stripe_subscription_id: subscriptionId,
         plan: planInfo.plan,
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       const planInfo = getPlanByPriceId(priceId);
       if (!planInfo) break;
 
-      await supabaseAdmin.from("users")
+      await getSupabaseAdmin().from("users")
         .update({ plan: planInfo.plan, renders_limit: planInfo.limit })
         .eq("stripe_subscription_id", sub.id);
       break;
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
-      await supabaseAdmin.from("users")
+      await getSupabaseAdmin().from("users")
         .update({ plan: "free", renders_limit: 0, stripe_subscription_id: null })
         .eq("stripe_subscription_id", sub.id);
       break;
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       const invoice = event.data.object as Stripe.Invoice;
       const subId = invoice.subscription as string;
       if (subId) {
-        await supabaseAdmin.from("users")
+        await getSupabaseAdmin().from("users")
           .update({ renders_used: 0 })
           .eq("stripe_subscription_id", subId);
       }

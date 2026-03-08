@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { stageRoom, RoomType, RoomStyle } from "@/lib/replicate";
 
 export async function POST(req: NextRequest) {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+  const { data: uploadData, error: uploadError } = await getSupabaseAdmin().storage
     .from("renders")
     .upload(fileName, buffer, { contentType: file.type });
 
@@ -43,12 +43,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 
-  const { data: { publicUrl: originalUrl } } = supabaseAdmin.storage
+  const { data: { publicUrl: originalUrl } } = getSupabaseAdmin().storage
     .from("renders")
     .getPublicUrl(uploadData.path);
 
   // Create pending render record
-  const { data: render, error: renderError } = await supabaseAdmin
+  const { data: render, error: renderError } = await getSupabaseAdmin()
     .from("renders")
     .insert({
       user_id: user.id,
@@ -73,22 +73,22 @@ export async function POST(req: NextRequest) {
     const stagedBuffer = Buffer.from(await response.arrayBuffer());
     const stagedFileName = `${user.id}/${Date.now()}-staged.jpg`;
 
-    const { data: stagedUpload } = await supabaseAdmin.storage
+    const { data: stagedUpload } = await getSupabaseAdmin().storage
       .from("renders")
       .upload(stagedFileName, stagedBuffer, { contentType: "image/jpeg" });
 
-    const { data: { publicUrl: stagedStoredUrl } } = supabaseAdmin.storage
+    const { data: { publicUrl: stagedStoredUrl } } = getSupabaseAdmin().storage
       .from("renders")
       .getPublicUrl(stagedUpload!.path);
 
     // Update render record
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from("renders")
       .update({ staged_url: stagedStoredUrl, status: "completed" })
       .eq("id", render.id);
 
     // Increment renders_used
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from("users")
       .update({ renders_used: user.rendersUsed + 1 })
       .eq("id", user.id);
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       stagedUrl: stagedStoredUrl,
     });
   } catch (err: any) {
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from("renders")
       .update({ status: "failed" })
       .eq("id", render.id);
@@ -108,3 +108,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Staging failed", detail: err.message }, { status: 500 });
   }
 }
+
