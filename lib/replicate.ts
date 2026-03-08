@@ -26,12 +26,13 @@ export type RoomStyle =
 export type RoomType =
   | "Living Room"
   | "Bedroom"
-  | "Dining Room"
-  | "Kitchen"
-  | "Office"
-  | "Bathroom"
   | "Balcony"
-  | "Garden";
+  | "Dining Room"
+  | "Office"
+  | "Kitchen"
+  | "Bathroom"
+  | "Garden"
+  | "Swimming Pool";
 
 export async function stageRoom(
   imageUrl: string,
