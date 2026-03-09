@@ -12,7 +12,7 @@ export default async function handler(req) {
   try {
     const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
 
-    const prompt = `Virtually stage this room by adding furniture and soft furnishings only. Do not change anything that already exists in the photo. This means: do not move, remove, recolour, or alter walls, floors, stairs, ceilings, windows, curtains, blinds, doors, light fittings, fixtures, appliances, or any architectural features. The room structure must remain identical to the original photo. Only add furniture such as sofas, chairs, tables, beds, rugs, cushions, lamps, artwork and plants. The result should look like the exact same room photographed after furniture was physically placed inside it. Photorealistic, professional real estate photography style. Style: ${style}. Room type: ${roomType}.`;
+    const prompt = `Virtually stage this room by adding furniture and soft furnishings only. Do not change anything that already exists in the photo. This means: do not move, remove, recolour, or alter walls, floors, stairs, ceilings, windows, curtains, blinds, doors, light fittings, fixtures, appliances, or any architectural features. The room structure must remain identical to the original photo. Only add furniture such as sofas, chairs, tables, beds, rugs, cushions, lamps, artwork and plants. The result should look like the exact same room photographed after furniture was physically placed inside it. Photorealistic, professional real estate photography style.`;
 
     console.log("[BG] Calling Replicate openai/gpt-image-1.5...");
 

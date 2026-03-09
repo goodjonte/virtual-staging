@@ -25,8 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No image provided" }, { status: 400 });
   }
 
-  const roomType = "Living Room";
-  const style = "Modern";
+
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
@@ -53,8 +52,7 @@ export async function POST(req: NextRequest) {
     .insert({
       user_id: user.id,
       original_url: originalUrl,
-      room_type: roomType,
-      style,
+
       status: "processing",
     })
     .select()
@@ -73,8 +71,6 @@ export async function POST(req: NextRequest) {
       renderId: render.id,
       userId: user.id,
       imageUrl: originalUrl,
-      roomType,
-      style,
       rendersUsed: user.rendersUsed,
     }),
   }).catch((err) => console.error("[STAGE] Failed to trigger background function:", err.message));
