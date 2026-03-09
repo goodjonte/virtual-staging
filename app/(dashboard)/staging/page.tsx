@@ -91,44 +91,51 @@ export default function StagingPage() {
     formData.append("style", style);
 
     try {
+      // Submit job — returns immediately with renderId
       const res = await fetch("/api/stage", { method: "POST", body: formData });
+      const data = await res.json();
 
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
         setError(data.error || "Something went wrong");
         stopLoadingUI();
         return;
       }
 
-      // Read streaming response line by line
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+      const { renderId, originalUrl } = data;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Poll for result every 4 seconds
+      let attempts = 0;
+      const maxAttempts = 50; // 50 * 4s = 200s max
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const data = JSON.parse(line);
-
-            if (data.status === "completed") {
-              stopLoadingUI();
-              setResult({ originalUrl: data.originalUrl, stagedUrl: data.stagedUrl });
-            } else if (data.status === "failed") {
-              stopLoadingUI();
-              setError(data.error || "Staging failed");
-            }
-            // ping and processing messages just keep connection alive, no UI update needed
-          } catch {}
+      const poll = async () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+          stopLoadingUI();
+          setError("Staging is taking too long, please try again.");
+          return;
         }
-      }
+
+        try {
+          const statusRes = await fetch(`/api/stage/${renderId}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "completed") {
+            stopLoadingUI();
+            setResult({ originalUrl, stagedUrl: statusData.staged_url });
+          } else if (statusData.status === "failed") {
+            stopLoadingUI();
+            setError("Staging failed, please try again.");
+          } else {
+            // Still processing, poll again
+            setTimeout(poll, 4000);
+          }
+        } catch {
+          setTimeout(poll, 4000);
+        }
+      };
+
+      setTimeout(poll, 4000);
+
     } catch (err: any) {
       stopLoadingUI();
       setError("Network error, please try again");

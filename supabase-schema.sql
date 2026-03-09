@@ -22,6 +22,7 @@ create table renders (
   room_type text,
   style text,
   status text default 'processing', -- processing | completed | failed
+  error_message text,
   created_at timestamptz default now()
 );
 
