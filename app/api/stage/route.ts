@@ -20,12 +20,13 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const file = formData.get("image") as File;
-  const roomType = formData.get("roomType") as string;
-  const style = formData.get("style") as string;
 
-  if (!file || !roomType || !style) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  if (!file) {
+    return NextResponse.json({ error: "No image provided" }, { status: 400 });
   }
+
+  const roomType = "Living Room";
+  const style = "Modern";
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
