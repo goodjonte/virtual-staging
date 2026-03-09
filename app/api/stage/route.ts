@@ -71,8 +71,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       renderId: render.id,
       userId: user.id,
-      imageBase64: buffer.toString("base64"),
-      mimeType: file.type,
+      imageUrl: originalUrl,
       roomType,
       style,
       rendersUsed: user.rendersUsed,

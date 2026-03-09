@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import OpenAI, { toFile } from "openai";
+import Replicate from "replicate";
 
 export default async function handler(req) {
-  const { renderId, userId, imageBase64, mimeType, roomType, style, rendersUsed } = await req.json();
+  const { renderId, userId, imageUrl, roomType, style, rendersUsed } = await req.json();
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -10,58 +10,53 @@ export default async function handler(req) {
   );
 
   try {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
 
-    const prompt = `You must stage this ${roomType.toLowerCase()} with ${style} style furniture. 
-Do not change what is already within the image — do not change the room layout, walls, ceiling, floors, windows, fixtures, or any existing items. 
-Do not change the colour of any existing things. 
-Add furniture and decor only. 
-Make it look like a professional real estate photo.`;
+    const prompt = `Virtually stage this room by adding furniture and soft furnishings only. Do not change anything that already exists in the photo. This means: do not move, remove, recolour, or alter walls, floors, stairs, ceilings, windows, curtains, blinds, doors, light fittings, fixtures, appliances, or any architectural features. The room structure must remain identical to the original photo. Only add furniture such as sofas, chairs, tables, beds, rugs, cushions, lamps, artwork and plants. The result should look like the exact same room photographed after furniture was physically placed inside it. Photorealistic, professional real estate photography style. Style: ${style}. Room type: ${roomType}.`;
 
-    const imageBuffer = Buffer.from(imageBase64, "base64");
-    const imageFile = await toFile(imageBuffer, "room.png", { type: "image/png" });
+    console.log("[BG] Calling Replicate openai/gpt-image-1.5...");
 
-    console.log("[BG] Calling OpenAI gpt-image-1...");
-
-    const response = await client.images.edit({
-      model: "gpt-image-1",
-      image: imageFile,
-      prompt,
-      n: 1,
-      size: "1024x1024",
+    const output = await replicate.run("openai/gpt-image-1.5", {
+      input: {
+        prompt,
+        quality: "low",
+        background: "auto",
+        moderation: "low",
+        aspect_ratio: "3:2",
+        input_images: [imageUrl],
+        output_format: "webp",
+        input_fidelity: "high",
+        number_of_images: 1,
+        output_compression: 90,
+      },
     });
 
-    const imageData = response.data?.[0];
-    if (!imageData) throw new Error("No image data returned from OpenAI");
+    const result = output?.[0];
+    if (!result) throw new Error("No output from Replicate");
 
-    let stagedBuffer;
-    if (imageData.b64_json) {
-      stagedBuffer = Buffer.from(imageData.b64_json, "base64");
-    } else if (imageData.url) {
-      const res = await fetch(imageData.url);
-      stagedBuffer = Buffer.from(await res.arrayBuffer());
-    } else {
-      throw new Error("No image data in OpenAI response");
-    }
+    const stagedUrl = typeof result.url === "function" ? result.url() : String(result);
 
-    console.log("[BG] Uploading staged image...");
+    console.log("[BG] Got staged image:", stagedUrl);
 
-    // Upload staged image to Supabase
-    const stagedFileName = `${userId}/${Date.now()}-staged.jpg`;
+    // Download the webp and upload to Supabase
+    const imgRes = await fetch(stagedUrl);
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+
+    const stagedFileName = `${userId}/${Date.now()}-staged.webp`;
     const { data: stagedUpload, error: uploadError } = await supabase.storage
       .from("renders")
-      .upload(stagedFileName, stagedBuffer, { contentType: "image/jpeg" });
+      .upload(stagedFileName, imgBuffer, { contentType: "image/webp" });
 
     if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-    const { data: { publicUrl: stagedUrl } } = supabase.storage
+    const { data: { publicUrl: stagedStoredUrl } } = supabase.storage
       .from("renders")
       .getPublicUrl(stagedUpload.path);
 
     // Update render record
     await supabase
       .from("renders")
-      .update({ staged_url: stagedUrl, status: "completed" })
+      .update({ staged_url: stagedStoredUrl, status: "completed" })
       .eq("id", renderId);
 
     // Increment renders_used
